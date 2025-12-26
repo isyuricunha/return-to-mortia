@@ -1,0 +1,12 @@
+services:
+  moria:
+    image: isyuricunha/return-to-mortia
+    container_name: return-to-moria
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    env_file:
+      - .env
+    ports:
+      - "7777:7777/udp"
+    volumes:
+      - ./data:/mnt/server

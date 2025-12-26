@@ -102,6 +102,43 @@ Manifest_NonUFSFiles_Win64.txt  MoriaServerRules.txt        steamcmd           v
 - Docker Engine
 - Docker Compose v2 (`docker compose`)
 
+## Prebuilt images (GHCR / Docker Hub)
+
+If you prefer to run a prebuilt image (instead of building locally), you can pull from:
+
+GitHub Container Registry (GHCR):
+
+```bash
+docker pull ghcr.io/isyuricunha/return-to-mortia:latest
+```
+
+Docker Hub:
+
+```bash
+docker pull isyuricunha/return-to-moria
+```
+
+Note: `latest` is the default tag on Docker Hub when you omit the tag.
+
+This repository includes ready-to-use compose files for both registries:
+
+- `docker-compose.ghcr.yml`
+- `docker-compose.dockerhub.yml`
+
+Example (GHCR):
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+Example (Docker Hub):
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.dockerhub.yml up -d
+```
+
 ## Quick start
 
 From the repository root:
@@ -112,25 +149,25 @@ From the repository root:
 cp .env.example .env
 ```
 
-2) Edit `.env` and adjust at least:
+1) Edit `.env` and adjust at least:
 
 - `PUID` / `PGID`
 - `WORLD_NAME`
 - `SERVER_PASSWORD` (optional)
 
-3) Build and start:
+1) Build and start:
 
 ```bash
 docker compose up -d --build
 ```
 
-4) View logs:
+1) View logs:
 
 ```bash
 docker compose logs -f
 ```
 
-5) Wait for the first install to finish.
+1) Wait for the first install to finish.
 
 On first run, the container will download SteamCMD and the dedicated server into `./data`. This can take several minutes.
 
@@ -223,9 +260,9 @@ Tip: stop the container before editing to avoid confusion with auto-updates and 
 docker compose down
 ```
 
-2) Edit the files in `./data` (for example `./data/MoriaServerConfig.ini`).
+1) Edit the files in `./data` (for example `./data/MoriaServerConfig.ini`).
 
-3) Start it again:
+1) Start it again:
 
 ```bash
 docker compose up -d
@@ -292,8 +329,8 @@ The main configuration files are stored in `./data`:
 Recommended flow:
 
 1) Stop the container.
-2) Edit the files.
-3) Start the container again.
+1) Edit the files.
+1) Start the container again.
 
 This reduces the chance of config being overwritten while the server is running.
 
@@ -339,13 +376,13 @@ Recommended approach:
 docker compose down
 ```
 
-2) Backup the folder:
+1) Backup the folder:
 
 ```bash
 tar -czf return-to-moria-backup.tar.gz data
 ```
 
-3) Start the container again:
+1) Start the container again:
 
 ```bash
 docker compose up -d
