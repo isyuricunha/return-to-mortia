@@ -1,0 +1,176 @@
+name: release
+
+"on":
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  tag_build_and_publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: resolve next tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --force --tags
+
+          commit_subject="$(git log -1 --pretty=%s)"
+          commit_body="$(git log -1 --pretty=%b)"
+          commit_message="$(git log -1 --pretty=%B)"
+
+          bump="patch"
+          if echo "${commit_message}" | grep -qiE "(^|[[:space:]])#major([[:space:]]|$)"; then
+            bump="major"
+          elif echo "${commit_message}" | grep -qiE "(^|[[:space:]])#minor([[:space:]]|$)"; then
+            bump="minor"
+          fi
+
+          last_tag="$(git tag -l 'v*' --sort=-v:refname | head -n 1 || true)"
+          if [[ -z "${last_tag}" ]]; then
+            major=0
+            minor=0
+            patch=0
+          else
+            if [[ ! "${last_tag}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              echo "latest tag '${last_tag}' is not semver (expected v<major>.<minor>.<patch>)" >&2
+              exit 1
+            fi
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+          fi
+
+          case "${bump}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          new_tag="v${major}.${minor}.${patch}"
+
+          if git rev-parse -q --verify "refs/tags/${new_tag}" >/dev/null; then
+            echo "tag '${new_tag}' already exists" >&2
+            exit 1
+          fi
+
+          printf '%s\n' "tag=${new_tag}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "bump=${bump}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "commit_subject<<EOF" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "${commit_subject}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "EOF" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "commit_body<<EOF" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "${commit_body}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "EOF" >> "${GITHUB_OUTPUT}"
+
+      - name: create and push tag
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          commit_message="$(git log -1 --pretty=%B)"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          printf '%s\n' "${commit_message}" | git tag -a "${TAG}" -F -
+          git push origin "refs/tags/${TAG}"
+
+      - name: resolve image names
+        id: images
+        shell: bash
+        env:
+          GHCR_IMAGE_OVERRIDE: ${{ vars.GHCR_IMAGE }}
+          IMAGE_NAME_OVERRIDE: ${{ vars.IMAGE_NAME }}
+          DOCKERHUB_IMAGE_OVERRIDE: ${{ vars.DOCKERHUB_IMAGE }}
+        run: |
+          set -euo pipefail
+
+          image_name="${IMAGE_NAME_OVERRIDE:-}"
+          if [[ -z "${image_name}" ]]; then
+            image_name="return-to-moria"
+          fi
+
+          ghcr_image="${GHCR_IMAGE_OVERRIDE:-}"
+          if [[ -z "${ghcr_image}" ]]; then
+            ghcr_image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${image_name}"
+          fi
+
+          dockerhub_image="${DOCKERHUB_IMAGE_OVERRIDE:-}"
+          if [[ -z "${dockerhub_image}" ]]; then
+            echo "missing GitHub Actions variable DOCKERHUB_IMAGE (example: mydockeruser/return-to-moria)" >&2
+            exit 1
+          fi
+
+          echo "ghcr_image=${ghcr_image}" >> "${GITHUB_OUTPUT}"
+          echo "dockerhub_image=${dockerhub_image}" >> "${GITHUB_OUTPUT}"
+
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: login to docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ steps.images.outputs.ghcr_image }}
+            ${{ steps.images.outputs.dockerhub_image }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.tag }}
+            type=raw,value=latest
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: create github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.commit_subject }}
+          body: ${{ steps.tag.outputs.commit_body }}
