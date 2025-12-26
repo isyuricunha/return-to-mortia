@@ -1,6 +1,10 @@
 # Return to Moria Dedicated Server (Docker)
 
-This folder is a standalone, self-contained setup to build and run a **Return to Moria** dedicated server using Docker.
+This repository is a standalone, self-contained setup to build and run a **Return to Moria** dedicated server using Docker.
+
+This is a personal project and is not affiliated with, endorsed by, or connected to any company or the game's developers.
+
+It is functional, tested, and currently used on **Ubuntu Server 24.04 LTS**.
 
 It is designed so you can copy only this folder into a new GitHub repository and publish the resulting image to:
 
@@ -126,6 +130,51 @@ docker compose build --no-cache
 ```
 
 ## Publishing images
+
+This repository includes a GitHub Actions workflow that can publish releases to:
+
+- Docker Hub
+- GitHub Container Registry (GHCR)
+
+The release workflow runs on `push` to `main` (and can also be run manually).
+
+### Release flow (GitHub Actions)
+
+The `release` workflow creates an annotated git tag automatically and pushes it to `origin`.
+
+Versioning rules:
+
+- Default bump is `patch`.
+- Add `#minor` in the commit message to bump `minor`.
+- Add `#major` in the commit message to bump `major`.
+
+The tag format is `v<major>.<minor>.<patch>`.
+
+The workflow also creates a GitHub Release where:
+
+- The release title is the commit subject.
+- The release body is the commit body.
+
+### GitHub Actions configuration
+
+Repository variables (Settings -> Secrets and variables -> Actions -> Variables):
+
+- `DOCKERHUB_IMAGE` (required for Docker Hub publishing). Example: `mydockeruser/return-to-moria`
+- `IMAGE_NAME` (optional). Defaults to `return-to-moria`
+- `GHCR_IMAGE` (optional). Defaults to `ghcr.io/<owner>/<IMAGE_NAME>`
+
+Repository secrets (Settings -> Secrets and variables -> Actions -> Secrets):
+
+- `DOCKERHUB_USERNAME` (required for Docker Hub publishing)
+- `DOCKERHUB_TOKEN` (required for Docker Hub publishing). Use a Docker Hub access token.
+
+Notes:
+
+- GHCR publishing uses the built-in `GITHUB_TOKEN` with `packages: write` permission.
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See `LICENSE`.
 
 ### Docker Hub
 
